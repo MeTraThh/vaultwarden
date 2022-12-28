@@ -1,0 +1,83 @@
+version: '3'
+
+services:
+  vaultwarden:
+    restart: unless-stopped
+    container_name: vaultwarden
+    hostname: vaultwarden
+    image: vaultwarden/server:latest
+    env_file:
+      - .env-vaultwarden
+    depends_on:
+      - mysql
+    volumes:
+      - type: volume
+        source: vaultwarden-data
+        target: /data/
+    networks:
+      - vaultwarden
+
+  nginx:
+    image: nginx:latest
+    restart: unless-stopped
+    container_name: vaultwarden-nginx
+    hostname: nginx
+    depends_on:
+      - vaultwarden
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - type: bind
+        source: ${PWD}/nginx/certificate/private.key
+        target: /etc/ssl/custom/private.key
+        read_only: true
+      - type: bind
+        source: ${PWD}/nginx/certificate/certificate.crt
+        target: /etc/ssl/custom/certificate.pem
+        read_only: true
+      - type: bind
+        source: ${PWD}/nginx/vaultwarden.conf
+        target: /etc/nginx/conf.d/vaultwarden.conf
+        read_only: true
+    networks:
+      - vaultwarden
+
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    container_name: vaultwarden-mysql
+    hostname: mysql
+    env_file:
+      - .env-mysql
+    command:
+      - mysqld
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_bin
+      - --skip-character-set-client-handshake
+      - --default-authentication-plugin=mysql_native_password
+    networks:
+      - vaultwarden
+    volumes:
+      - type: volume
+        source: vaultwarden-mysql-data
+        target: /var/lib/mysql
+
+volumes:
+  vaultwarden-data:
+    name: vaultwarden-data
+  vaultwarden-mysql-data:
+    name: vaultwarden-mysql-data
+
+networks:
+  vaultwarden:
+    name: vaultwarden
+    enable_ipv6: false
+    driver: bridge
+    driver_opts:
+      com.docker.network.enable_ipv6: "false"
+    ipam:
+      driver: default
+      config:
+      - subnet: 192.168.0.0/23
+
